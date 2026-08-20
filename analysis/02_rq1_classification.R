@@ -9,7 +9,7 @@
 # still an unbiased estimate of the population AUC (rank statistic); PR-AUC is
 # NOT invariant to class prior, so it's reported alongside the true prevalence
 # from label_summary.csv for context.
-source("r/00_setup.R")
+source("analysis/00_setup.R")
 suppressMessages({ library(glmnet); library(pROC); library(PRROC) })
 
 set.seed(1)
@@ -31,27 +31,55 @@ test <- test %>% select(all_of(c("fail_within_30d", snapshot_cols))) %>% na.omit
 ## --- Baseline: logistic regression ---------------------------------------
 ## Fitting on the full snapshot set (raw + normalized) fails badly: several
 ## SMART attributes are constant (0 variance) for a given manufacturer, and
-## raw/normalized pairs are near-collinear encodings of the same signal - with
-## a rare event this produces quasi-complete separation (glm.fit does not
-## converge, coefficients blow up to ~1e13, AUC collapses to ~0.60, worse than
-## chance-adjacent). The unpenalized MLE baseline is given a cleaner, less
-## collinear predictor set (raw attributes only, zero-variance ones dropped)
-## so it's a fair comparison point; the elastic-net model below still uses the
-## full snapshot set since its penalty handles the collinearity directly.
+## raw/normalized pairs are near-collinear encodings of the same signal. On
+## top of that, Backblaze's raw SMART counters are heavily right-skewed and
+## occasionally corrupted (firmware bugs produce absurd outlier values for a
+## small number of drives) - with a rare event, those extreme leverage points
+## push unpenalized IRLS straight into quasi-complete separation (glm.fit
+## warns "fitted probabilities numerically 0 or 1", coefficients blow up to
+## ~1e13, AUC collapses to ~chance). The unpenalized MLE baseline gets: (a) a
+## cleaner, less collinear predictor set (raw attributes only, zero-variance
+## ones dropped), and (b) a log1p + standardize transform (fit on train,
+## applied to test) to tame the skew/outliers - both standard preprocessing
+## for this dataset, not just a numerical patch. The elastic-net model below
+## uses the untransformed full snapshot set since its penalty already handles
+## collinearity and scale directly, so it's left as-is for comparison.
 raw_cols <- grep("_raw$", snapshot_cols, value = TRUE)
 nzv <- sapply(train[, raw_cols], function(x) var(x, na.rm = TRUE) > 0)
 glm_cols <- raw_cols[nzv]
-cat(sprintf("\nBaseline glm predictors (raw, non-constant): %s\n", paste(glm_cols, collapse = ", ")))
+cat(sprintf("\nBaseline glm predictors (raw, non-constant, log1p+standardized): %s\n",
+            paste(glm_cols, collapse = ", ")))
+
+log1p_standardize <- function(train_df, test_df, cols) {
+  stats <- lapply(cols, function(col) {
+    x <- log1p(pmax(train_df[[col]], 0))
+    list(mean = mean(x), sd = sd(x))
+  })
+  names(stats) <- cols
+  apply_transform <- function(df) {
+    for (col in cols) {
+      x <- log1p(pmax(df[[col]], 0))
+      sd_c <- stats[[col]]$sd
+      df[[col]] <- if (sd_c > 0) (x - stats[[col]]$mean) / sd_c else 0
+    }
+    df
+  }
+  list(train = apply_transform(train_df), test = apply_transform(test_df))
+}
+
+glm_data <- log1p_standardize(train, test, glm_cols)
+train_glm <- glm_data$train
+test_glm <- glm_data$test
 
 ## model = FALSE, y = FALSE: glm() otherwise retains the full model frame /
 ## response vector inside the fitted object, which on a 1.4M-row training set
 ## made a naive saveRDS() balloon to 300+MB (and got committed to git once
 ## before results/ was gitignored - see .gitignore).
-glm_fit <- glm(reformulate(glm_cols, "fail_within_30d"), data = train, family = binomial(),
+glm_fit <- glm(reformulate(glm_cols, "fail_within_30d"), data = train_glm, family = binomial(),
                model = FALSE, y = FALSE)
 print(summary(glm_fit))
 
-pred_glm <- predict(glm_fit, newdata = test, type = "response")
+pred_glm <- predict(glm_fit, newdata = test_glm, type = "response")
 roc_glm <- roc(test$fail_within_30d, pred_glm, quiet = TRUE)
 pr_glm <- pr.curve(scores.class0 = pred_glm[test$fail_within_30d == 1],
                     scores.class1 = pred_glm[test$fail_within_30d == 0], curve = FALSE)
@@ -71,7 +99,17 @@ cat(sprintf("\n=== RQ1 results (snapshot-only) ===\n"))
 cat(sprintf("Logistic regression   : AUC = %.4f\n", auc(roc_glm)))
 cat(sprintf("Elastic-net logistic  : AUC = %.4f\n", auc(roc_glmnet)))
 
-saveRDS(list(glm = glm_fit, glmnet = cv_fit, snapshot_cols = snapshot_cols,
+## glm() still carries an n x p QR decomposition plus several length-n
+## vectors (residuals, fitted.values, weights, linear.predictors) even with
+## model = FALSE, y = FALSE - none of which predict.glm(..., se.fit = FALSE)
+## needs (only coefficients/terms/xlevels/family are required for a point
+## prediction). Strip them so the saved object doesn't scale with training
+## row count - this is what was actually behind the 300MB+ .rds file.
+glm_fit_slim <- glm_fit
+glm_fit_slim[c("residuals", "fitted.values", "effects", "qr", "linear.predictors",
+                "weights", "prior.weights", "y", "model", "data")] <- NULL
+
+saveRDS(list(glm = glm_fit_slim, glm_transform_cols = glm_cols, glmnet = cv_fit, snapshot_cols = snapshot_cols,
              roc_glm = roc_glm, roc_glmnet = roc_glmnet, true_prevalence = true_prevalence),
         file.path(RESULTS_DIR, "rq1_models.rds"))
 

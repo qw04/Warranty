@@ -1,7 +1,7 @@
 # RQ3 - Are there distinct clusters of drives with similar degradation
 # patterns, and do they carry different failure risk (validated via
 # per-cluster Kaplan-Meier curves)?
-source("r/00_setup.R")
+source("analysis/00_setup.R")
 suppressMessages({ library(factoextra); library(cluster) })
 
 set.seed(1)
@@ -20,10 +20,14 @@ cat(sprintf("Clustering on %d drives x %d degradation features\n", nrow(last_obs
 
 X <- scale(as.matrix(last_obs[, ts_cols]))
 
-## Choose k via silhouette score over a small candidate range
+## Choose k via silhouette score over a small candidate range. silhouette()
+## needs a full pairwise distance matrix, which is infeasible at ~190k drives
+## (190000^2 entries ~ 144GB) - kmeans itself is fit on the FULL data (cheap,
+## O(n*k*iter)), but silhouette is evaluated on a fixed random subsample.
+sil_sample <- sample(nrow(X), min(5000, nrow(X)))
 sil_scores <- sapply(2:6, function(k) {
   km <- kmeans(X, centers = k, nstart = 10, iter.max = 50)
-  mean(silhouette(km$cluster, dist(X))[, 3])
+  mean(silhouette(km$cluster[sil_sample], dist(X[sil_sample, ]))[, 3])
 })
 best_k <- (2:6)[which.max(sil_scores)]
 cat(sprintf("Silhouette by k: %s -> chosen k = %d\n",
@@ -54,9 +58,13 @@ p_km <- ggsurvplot(km_cluster, data = events, conf.int = TRUE,
                     legend = "right")
 ggsave(file.path(RESULTS_DIR, "rq3_km_by_cluster.png"), p_km$plot, width = 9, height = 6)
 
-logrank <- survdiff(surv_obj ~ cluster, data = events)
-cat("\nLog-rank test for difference in survival across clusters:\n")
-print(logrank)
+## survdiff() (the usual log-rank test) doesn't support the left-truncated
+## counting-process Surv(start, stop, event) form used here. A single-covariate
+## Cox model's score test is asymptotically equivalent to the log-rank test and
+## does support this form, so it's used as the significance test instead.
+cox_cluster <- coxph(surv_obj ~ cluster, data = events)
+cat("\nCox score (log-rank-equivalent) test for difference in survival across clusters:\n")
+print(summary(cox_cluster)$sctest)
 
 saveRDS(list(kmeans = km_final, last_obs = last_obs, cluster_summary = cluster_summary),
         file.path(RESULTS_DIR, "rq3_clustering.rds"))

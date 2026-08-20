@@ -1,6 +1,6 @@
-# Common paths + package loads for all r/*.R scripts.
+# Common paths + package loads for all analysis/*.R scripts.
 # Run scripts from the project root, e.g.:
-#   "C:/Program Files/R/R-4.6.1/bin/Rscript.exe" r/01_survival_km_cox.R
+#   "C:/Program Files/R/R-4.6.1/bin/Rscript.exe" analysis/01_survival_km_cox.R
 
 suppressMessages({
   library(arrow)
@@ -10,11 +10,26 @@ suppressMessages({
   library(ggplot2)
 })
 
-# Run from the project root (warranty/) so relative paths below resolve.
-PROCESSED_DIR <- file.path(getwd(), "data", "processed")
+## getwd() at source-time differs between `Rscript analysis/foo.R` (project
+## root) and rmarkdown::render() (defaults to the .Rmd's own directory,
+## analysis/) - self-locate the project root instead of assuming the caller's
+## working directory.
+find_project_root <- function() {
+  d <- getwd()
+  for (i in 1:5) {
+    if (dir.exists(file.path(d, "data")) || dir.exists(file.path(d, ".git"))) return(d)
+    parent <- dirname(d)
+    if (parent == d) break
+    d <- parent
+  }
+  getwd()
+}
+PROJECT_ROOT <- find_project_root()
+
+PROCESSED_DIR <- file.path(PROJECT_ROOT, "data", "processed")
 FEATURES_DIR <- file.path(PROCESSED_DIR, "features")  # one parquet file per model
 EVENTS_PATH <- file.path(PROCESSED_DIR, "event_table.parquet")
-RESULTS_DIR <- file.path(getwd(), "results")
+RESULTS_DIR <- file.path(PROJECT_ROOT, "results")
 dir.create(RESULTS_DIR, showWarnings = FALSE, recursive = TRUE)
 
 FAILURE_HORIZON_DAYS <- 30

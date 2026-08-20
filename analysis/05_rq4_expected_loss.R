@@ -1,7 +1,7 @@
 # RQ4 - Translate survival-model failure risk into expected insurance losses
 # across models and coverage durations, and characterise how expected loss
 # scales with coverage length (linear/multilinear regression).
-source("r/00_setup.R")
+source("analysis/00_setup.R")
 
 ## No public replacement-cost data exists for this dataset, so a simple cost
 ## proxy is used and clearly flagged as an assumption: $X per TB of capacity.
@@ -9,7 +9,16 @@ source("r/00_setup.R")
 COST_PER_TB_USD <- 25
 
 events <- load_events()
-cox_simple <- readRDS(file.path(RESULTS_DIR, "cox_simple.rds"))
+
+## Refit rather than readRDS(cox_simple.rds): a coxph object's formula carries
+## a reference to the environment it was fit in (here, the `surv_obj` symbol
+## from r/01_survival_km_cox.R's session) - survfit() re-evaluates that
+## formula against the ORIGINAL environment to reconstruct the baseline
+## hazard, which breaks once loaded into a different R session/process.
+## Refitting here (cheap - Cox on ~197k rows converges in well under a second)
+## sidesteps the issue entirely.
+surv_obj <- Surv(time = events$age_start_days, time2 = events$age_stop_days, event = events$event)
+cox_simple <- coxph(surv_obj ~ model, data = events)
 
 COVERAGE_DAYS <- c(30, 90, 180, 365, 545, 730)  # 1mo .. 2yr contracts
 models_present <- levels(factor(events$model))

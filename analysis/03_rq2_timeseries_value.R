@@ -2,7 +2,7 @@
 # improve 30-day failure prediction versus snapshot-only features?
 # Re-fits the RQ1 elastic-net logistic model with the rolling features added,
 # on the same pre-built train/test split, and compares AUC / PR-AUC uplift.
-source("r/00_setup.R")
+source("analysis/00_setup.R")
 suppressMessages({ library(glmnet); library(pROC); library(PRROC) })
 
 set.seed(1)

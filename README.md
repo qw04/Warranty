@@ -43,7 +43,7 @@ pipeline below.
   time; `power_on_hours` (SMART 9) is used as the true age axis instead,
   handled via `Surv(start, stop, event)` in the Cox model.
 - RQ4's replacement cost is a simple $/TB proxy (`COST_PER_TB_USD` in
-  `r/05_rq4_expected_loss.R`), not real manufacturer/retail pricing - swap in
+  `analysis/05_rq4_expected_loss.R`), not real manufacturer/retail pricing - swap in
   real figures if available.
 - No causal claims: SMART/degradation associations with failure are
   correlational.
@@ -57,12 +57,12 @@ pipeline below.
 4. python pipeline/01_build_panel.py            # top-N models -> data/processed/panel/*.parquet
 5. python pipeline/02_feature_engineering.py    # -> data/processed/features/*.parquet + event_table.parquet
 6. python pipeline/03_prepare_r_inputs.py       # downsampled train/test + last_observation + label_summary (R-safe sizes)
-7. Rscript r/01_survival_km_cox.R               # supporting KM + Cox
-8. Rscript r/02_rq1_classification.R            # RQ1
-9. Rscript r/03_rq2_timeseries_value.R          # RQ2
-10. Rscript r/04_rq3_clustering.R               # RQ3
-11. Rscript r/05_rq4_expected_loss.R            # RQ4 (needs cox_simple.rds from step 7)
-12. rmarkdown::render("r/report.Rmd")           # final report -> r/report.html
+7. Rscript analysis/01_survival_km_cox.R               # supporting KM + Cox
+8. Rscript analysis/02_rq1_classification.R            # RQ1
+9. Rscript analysis/03_rq2_timeseries_value.R          # RQ2
+10. Rscript analysis/04_rq3_clustering.R               # RQ3
+11. Rscript analysis/05_rq4_expected_loss.R            # RQ4 (needs cox_simple.rds from step 7)
+12. rmarkdown::render("analysis/report.Rmd")           # final report -> analysis/report.html
 ```
 
 Python dependencies: `pip install -r requirements.txt` (a `.venv` is used -

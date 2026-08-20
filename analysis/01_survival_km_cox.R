@@ -1,7 +1,7 @@
 # Supporting survival analysis: Kaplan-Meier + Cox PH.
 # Used to (a) justify the 30-day RQ1 horizon and class imbalance, (b) provide a
 # baseline hazard view, and (c) validate the RQ3 clusters and RQ4 loss curves.
-source("r/00_setup.R")
+source("analysis/00_setup.R")
 
 events <- load_events()
 cat(sprintf("Loaded %d drives (%d models), %d failures\n",

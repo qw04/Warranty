@@ -1,28 +1,78 @@
 # Warranty
 
-This project is meant to explore warranty, and how different aspect of warranty policy are determined.
+## Data-Driven Risk Modelling of Hard Drive Failures for Insurance Pricing
 
-## Project Summary
+This project uses the Backblaze hard drive dataset to model short-horizon and
+lifetime hard drive failure risk, to inform third-party hard drive insurance
+pricing. It applies classification, time-series feature engineering,
+clustering and regression (the module's core methods) to the risk problem,
+with Kaplan-Meier and Cox survival analysis used as supporting tools to
+handle censoring and validate the core-method results.
 
-This project examines how empirical failure data can be used to inform warranty design decisions from the perspective of a product manufacturer. Using a large, real-world dataset of hard drive operational histories and failure events, the analysis focuses on modelling time-to-failure behaviour and estimating the expected cost of providing warranty coverage over different durations.
+## Research Questions
 
-A product warranty is treated as a time-limited contract under which the manufacturer bears the cost of replacement if a failure occurs within the coverage period. By analysing observed failure times and appropriately accounting for censored observations where products do not fail within the available data window, the project estimates cumulative failure probabilities and investigates how expected warranty costs evolve as coverage is extended.
-
-The analysis applies core data analytics techniques including data cleaning and validation, exploratory visualisation, and regression-based modelling to identify key drivers of failure risk and to compare risk profiles across hard drive models. These insights are then used to evaluate the trade-off between offering longer warranties and the associated increase in expected cost, highlighting points at which marginal cost grows disproportionately.
-
-The project demonstrates how data-driven analysis can support pricing and product design decisions under uncertainty, reflecting challenges commonly faced in actuarial pricing and risk assessment.
-
-## Key Assumptions
+- **RQ1 (Classification)** - Can early-life SMART attributes and recent SMART
+  trends predict whether a drive will fail within the next 30 days?
+- **RQ2 (Time series)** - Do rolling time-series SMART features (mean/slope/
+  volatility) improve short-horizon prediction over snapshot-only features?
+- **RQ3 (Clustering)** - Are there distinct degradation-pattern clusters, and
+  do they carry different failure risk (validated via per-cluster KM curves)?
+- **RQ4 (Regression)** - How does predicted failure risk translate into
+  expected insurance losses across models and coverage durations?
+- **Supporting** - Kaplan-Meier and Cox PH analysis, to justify the 30-day
+  horizon, handle censoring/left-truncation properly, and cross-check RQ1/3/4.
 
 ## Data
 
-The dataset is sourced from Backblaze's public hard drive failure data resources, which contains detailed records of hard drive models, their operational status, and failure events over time. The data is available on the follwing [webpage](https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data).
+Sourced from Backblaze's public hard drive failure data
+([webpage](https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data)).
+This project uses a **reduced sample: 2021-2022** (8 quarters, ~7.5GB
+compressed) rather than the full 2016-2022 range, restricted to the
+**top ~15 drive models by population** (with a minimum observed-failure
+count) - see `data/processed/model_summary.csv` after running the pipeline.
+Full raw data and all processed outputs are gitignored; regenerate with the
+pipeline below.
 
-## Tools Used to Perform this Analysis
+### Known limitations / assumptions
 
-- Python : For data cleaning and initial exploratory analysis
-- R : Rest of the project analysis and modelling
-- RMarkdown : For generating reports
-- GitHub : For version control and project management
-- Visual Studio Code : For code editing and development
-- Radian : For enhanced R console experience
+- Enterprise-only, observational population (not consumer usage patterns).
+- SMART attribute availability differs by manufacturer; only attributes with
+  broad coverage across the selected models are used (see
+  `src/config.py:CANDIDATE_SMART_IDS`).
+- Drives already in service before 2021-01-01 are left-truncated in calendar
+  time; `power_on_hours` (SMART 9) is used as the true age axis instead,
+  handled via `Surv(start, stop, event)` in the Cox model.
+- RQ4's replacement cost is a simple $/TB proxy (`COST_PER_TB_USD` in
+  `r/05_rq4_expected_loss.R`), not real manufacturer/retail pricing - swap in
+  real figures if available.
+- No causal claims: SMART/degradation associations with failure are
+  correlational.
+
+## Pipeline
+
+```
+1. python fetch_data.py                       # download raw zips -> data/raw_data
+2. python scripts/unzip_clean.py               # unzip/flatten/clean -> "data/raw data"
+3. python scripts/inspect_models.py             # -> data/processed/model_summary.csv
+4. python pipeline/01_build_panel.py            # top-N models -> data/processed/panel/*.parquet
+5. python pipeline/02_feature_engineering.py    # -> data/processed/features/*.parquet + event_table.parquet
+6. python pipeline/03_prepare_r_inputs.py       # downsampled train/test + last_observation + label_summary (R-safe sizes)
+7. Rscript r/01_survival_km_cox.R               # supporting KM + Cox
+8. Rscript r/02_rq1_classification.R            # RQ1
+9. Rscript r/03_rq2_timeseries_value.R          # RQ2
+10. Rscript r/04_rq3_clustering.R               # RQ3
+11. Rscript r/05_rq4_expected_loss.R            # RQ4 (needs cox_simple.rds from step 7)
+12. rmarkdown::render("r/report.Rmd")           # final report -> r/report.html
+```
+
+Python dependencies: `pip install -r requirements.txt` (a `.venv` is used -
+see `.venv/Scripts/python.exe`). R packages: `survival`, `survminer`,
+`dplyr`, `ggplot2`, `arrow`, `cluster`, `factoextra`, `glmnet`, `pROC`,
+`PRROC`, `rmarkdown`, `knitr`.
+
+## Tools Used
+
+- Python : data download, cleaning, panel construction, feature engineering
+- R : classification, clustering, regression, survival modelling
+- RMarkdown : final report
+- GitHub : version control and project management

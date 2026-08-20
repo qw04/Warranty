@@ -1,2 +1,8 @@
 urllib3
 pandas
+numpy
+pyarrow
+matplotlib
+seaborn
+scikit-learn
+jupyter

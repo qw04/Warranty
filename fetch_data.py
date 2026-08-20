@@ -14,7 +14,7 @@ http = urllib3.PoolManager(
 )
 
 quarters = range(1, 5)   # Q1–Q4
-years = range(16, 23)    # 2016–2022
+years = range(21, 23)    # 2021–2022 (reduced sample: recent, better SMART coverage, larger fleet)
 
 for i in quarters:
     for ab in years:
@@ -34,12 +34,24 @@ for i in quarters:
                     print(f"  [ERROR] HTTP {r.status} for {filename}")
                     continue
 
+                expected_size = r.headers.get("Content-Length")
+                expected_size = int(expected_size) if expected_size else None
+
                 with open(dest, "wb") as f:
                     for chunk in r.stream(8192):
                         if chunk:
                             f.write(chunk)
 
+            actual_size = dest.stat().st_size
+            if expected_size is not None and actual_size != expected_size:
+                dest.unlink()
+                print(f"  [FAILED] {filename}: truncated download "
+                      f"({actual_size} of {expected_size} bytes) - removed, will retry next run")
+                continue
+
             print(f"  [DONE] {filename}")
 
         except Exception as e:
+            if dest.exists():
+                dest.unlink()
             print(f"  [FAILED] {filename}: {e}")

@@ -1,13 +1,32 @@
-# Warranty
+# Hard Drive Failure Risk Modelling
 
-## Data-Driven Risk Modelling of Hard Drive Failures for Insurance Pricing
+Predicting and segmenting hard drive failures from Backblaze SMART telemetry across ~197,000 drives and ~127 million drive-days. Clustering on degradation features, with no failure labels, found a group of drives with a 68.9% failure rate, against 1.1% in the largest group.
 
-This project uses the Backblaze hard drive dataset to model short-horizon and
-lifetime hard drive failure risk, to inform third-party hard drive insurance
-pricing. It applies classification, time-series feature engineering,
-clustering and regression (the module's core methods) to the risk problem,
-with Kaplan-Meier and Cox survival analysis used as supporting tools to
-handle censoring and validate the core-method results.
+**[Read the full report](https://qw04.github.io/Warranty/)**
+
+![Kaplan-Meier survival by degradation cluster](results/rq3_km_by_cluster.png)
+
+## Results
+
+| Question | Method | Finding |
+| --- | --- | --- |
+| Can SMART readings predict failure within 30 days? | Logistic regression, elastic net | AUC 0.85 for logistic regression, ahead of elastic net at 0.79 |
+| Do rolling time-series features help? | 7- and 30-day mean, slope, volatility | AUC unchanged (0.791 vs 0.790), PR-AUC up from 0.489 to 0.509 |
+| Are there distinct degradation patterns? | K-means (k=5, chosen by silhouette score) | Failure rates from 1.1% to 68.9% across clusters of 500+ drives |
+| Which drive models carry the most risk? | Kaplan-Meier, Cox proportional hazards | Hazard ratios up to ~8.6x the reference model |
+| How does risk translate into expected cost? | Regression on Cox-based expected loss | R² = 0.81; most variation is between drive models, not coverage length |
+
+**Tech:** Python (data pipeline, feature engineering), R (`survival`, `glmnet`, `cluster`, `pROC`), R Markdown
+
+## What I'd do next
+
+- Use real replacement prices instead of the $25/TB proxy
+- Model time-varying effects, since the data rejects strict proportional hazards
+- Extend the sample from 2021–2022 to the full 2016–2022 data
+
+## Overview
+
+This project applies classification, time-series feature engineering, clustering and regression to hard drive failure risk, with Kaplan-Meier and Cox survival analysis used to handle censoring and cross-check the results.
 
 ## Research Questions
 

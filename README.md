@@ -37,7 +37,7 @@ This project applies classification, time-series feature engineering, clustering
 - **RQ3 (Clustering)** - Are there distinct degradation-pattern clusters, and
   do they carry different failure risk (validated via per-cluster KM curves)?
 - **RQ4 (Regression)** - How does predicted failure risk translate into
-  expected insurance losses across models and coverage durations?
+  expected replacement costs across models and coverage durations?
 - **Supporting** - Kaplan-Meier and Cox PH analysis, to justify the 30-day
   horizon, handle censoring/left-truncation properly, and cross-check RQ1/3/4.
 

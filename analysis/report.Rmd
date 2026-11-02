@@ -1,5 +1,5 @@
 ---
-title: "Data-Driven Risk Modelling of Hard Drive Failures for Insurance Pricing"
+title: "Data-Driven Risk Modelling of Hard Drive Failures"
 author: ""
 date: "`r Sys.Date()`"
 output:
@@ -21,8 +21,8 @@ source("00_setup.R")
 
 This report models short-horizon and lifetime hard drive failure risk using a
 2021-2022 sample of the Backblaze hard drive dataset (top 15 models by fleet
-size, ~197k drives, ~127M valid drive-day observations), to inform third-party
-hard drive insurance pricing. Four research questions are addressed with the
+size, ~197k drives, ~127M valid drive-day observations), to inform drive
+replacement and warranty decisions. Four research questions are addressed with the
 module's core methods - classification, time-series feature engineering,
 clustering, and regression - with Kaplan-Meier and Cox proportional hazards
 survival analysis used throughout as a supporting tool for handling censoring
@@ -139,12 +139,12 @@ of magnitude. The Cox score test (log-rank-equivalent, robust to the
 left-truncated time axis used throughout) confirms the survival curves differ
 across clusters far beyond chance (p < 0.001). Practically: unsupervised
 degradation patterns alone, with no failure label used in fitting, recover
-a highly actionable high-risk segment - exactly the kind of signal an insurer
-would want for risk-based pricing tiers.
+a highly actionable high-risk segment - exactly the kind of signal that could
+drive targeted monitoring or early replacement.
 
-## 7. RQ4 - Expected Loss & Pricing Implications
+## 7. RQ4 - Expected Loss & Cost Implications
 
-*How does predicted failure risk translate into expected insurance losses
+*How does predicted failure risk translate into expected replacement costs
 across drive models and coverage durations?*
 
 ```{r rq4}
@@ -161,10 +161,9 @@ terms are not individually significant once model is in the model - most of
 the variation is *between models*, not within a model as coverage grows -
 while several specific models (ST14000NM001G, ST12000NM0007,
 TOSHIBA MG08ACA16TE) carry significantly higher expected loss than the
-reference model at matched coverage length. This is the direct actuarial
-takeaway: **a flat, fleet-wide warranty price would systematically
-under-price some models and over-price others** - the model-level
-differences here are large enough to justify risk-adjusted pricing tiers
+reference model at matched coverage length. The practical takeaway: **treating
+all drive models alike would misstate expected cost** - the model-level
+differences here are large enough to justify model-specific planning
 rather than a single blended rate.
 
 ## 8. Discussion
@@ -177,15 +176,15 @@ sharply different risk tiers even without using failure labels (RQ3, ~1% vs.
 ~70-100% failure rate), and that risk difference is large enough to matter
 financially across models and coverage lengths (RQ4, R² = 0.81 with model
 identity as the dominant driver). Together this supports a risk-segmented
-approach to hard drive warranty/insurance pricing - by model at minimum, and
-potentially by degradation cluster for finer-grained, usage-aware pricing.
+approach to managing hard drive failure risk - by model at minimum, and
+potentially by degradation cluster for finer-grained, usage-aware decisions.
 
 **Limitations.**
 
 - **Observational, enterprise-only population.** Backblaze operates data
   centre workloads; consumer usage patterns (temperature, vibration, power
   cycling) differ and these results should not be extrapolated to consumer
-  warranty pricing without validation on consumer-representative data.
+  drives without validation on consumer-representative data.
 - **Reduced sample.** This analysis uses a 2021-2022, top-15-model subset of
   the full 2016-2022 Backblaze dataset (see `../README.md`) for tractability
   on commodity hardware; a production deployment would revisit that scoping.
@@ -207,27 +206,25 @@ potentially by degradation cluster for finer-grained, usage-aware pricing.
   but drive removals for reasons other than failure (e.g. fleet migration)
   are not distinguishable from failure-free censoring in this dataset.
 
-**Ethical and sustainability implications.** Risk-based pricing that
-accurately prices in higher-failure-risk models could, if passed through to
-manufacturers and consumers, create an incentive to discontinue or avoid
-lower-reliability models - a plausible reliability-improving effect. It could
-also concentrate replacement/e-waste incentives around specific models or
-degradation signatures in ways worth monitoring, and predictive
-"early-replacement" pricing signals raise a genuine tension between
-minimizing warranty payouts and encouraging premature hardware replacement
-(a sustainability cost) versus running drives closer to actual failure (a
-data-loss risk). Neither is assessed quantitatively here, but both are live
-considerations were this analysis to inform actual pricing policy.
+**Ethical and sustainability implications.** Acting on model-level
+risk could create an incentive to discontinue or avoid lower-reliability
+models - a plausible reliability-improving effect. It could also concentrate
+replacement and e-waste around specific models or degradation signatures in
+ways worth monitoring, and predictive early-replacement signals raise a
+genuine tension between encouraging premature hardware replacement (a
+sustainability cost) and running drives closer to actual failure (a data-loss
+risk). Neither is assessed quantitatively here, but both are live
+considerations were this analysis to inform real replacement policy.
 
 ## 9. Conclusion
 
 SMART telemetry, engineered through standard analytics techniques
 (classification, time-series features, clustering, regression) and
 cross-validated with survival analysis, provides strong, actionable signal
-for hard drive failure risk at a 30-day operational horizon and over full
-warranty-length coverage periods. The clearest single finding is RQ3's
+for hard drive failure risk at a 30-day operational horizon and over longer
+coverage periods. The clearest single finding is RQ3's
 degradation clustering, which separates a small, unsupervised high-risk
 segment carrying failure rates up to two orders of magnitude above the
 fleet baseline - and RQ4 shows that risk difference is large enough, in
-expected-loss terms, to justify moving away from flat, fleet-wide warranty
-pricing toward risk-segmented pricing by model and/or degradation profile.
+expected-loss terms, to justify moving away from treating all drives alike
+toward risk-segmented decisions by model and/or degradation profile.
